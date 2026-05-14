@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>JARVIS Walkie-Talkie</title>
+    <title>JARVIS Comms v2</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&display=swap" rel="stylesheet">
     <style>
         :root {
             --ink-black: #000814;
@@ -15,7 +16,7 @@
         }
 
         body { 
-            font-family: 'Orbitron', 'Segoe UI', sans-serif; 
+            font-family: 'Orbitron', sans-serif; 
             background-color: var(--ink-black); 
             color: var(--gold);
             margin: 0;
@@ -25,10 +26,10 @@
             justify-content: center;
             height: 100vh;
             overflow: hidden;
-            background-image: radial-gradient(circle at center, var(--oxford-navy) 0%, var(--ink-black) 80%);
+            background-image: radial-gradient(circle at center, var(--oxford-navy) 0%, var(--ink-black) 90%);
         }
 
-        /* CAPA DE LÍNEAS LCD (Como image_850001.png) */
+        /* CAPA LCD (Basada en image_850001.png) */
         body::before {
             content: " ";
             position: fixed;
@@ -40,144 +41,147 @@
             opacity: 0.4;
         }
 
-        /* Efecto de parpadeo sutil de pantalla antigua */
-        @keyframes flicker {
-            0% { opacity: 0.97; }
-            5% { opacity: 0.95; }
-            10% { opacity: 0.99; }
-            100% { opacity: 1; }
-        }
-        .main-container { animation: flicker 0.1s infinite; z-index: 10; }
+        .main-container { z-index: 10; text-align: center; }
 
-        /* Pantalla Principal Circular Estilo Jarvis */
+        /* PANEL CENTRAL CIRCULAR */
         .jarvis-hud {
             position: relative;
-            width: 300px;
-            height: 300px;
+            width: 320px;
+            height: 320px;
             border-radius: 50%;
             border: 2px solid var(--oxford-navy);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 0 50px rgba(0, 53, 102, 0.5), inset 0 0 30px rgba(0, 53, 102, 0.5);
-            margin-bottom: 20px;
+            transition: all 0.3s ease;
+            margin-bottom: 40px;
+            background: rgba(0, 29, 61, 0.2);
+        }
+
+        /* ANILLO DE LUZ QUE RODEA EL CÍRCULO (Sustituye a la línea de image_84f5d2.png) */
+        .status-ring {
+            position: absolute;
+            top: -5px; left: -5px; right: -5px; bottom: -5px;
+            border-radius: 50%;
+            border: 4px solid transparent;
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+
+        /* ESTADOS DEL ANILLO */
+        .status-ring.transmitting { 
+            border-color: #ffffff; 
+            box-shadow: 0 0 30px rgba(255, 255, 255, 0.6), inset 0 0 20px rgba(255, 255, 255, 0.4);
+        }
+        .status-ring.receiving { 
+            border-color: var(--gold); 
+            box-shadow: 0 0 30px var(--school-bus-yellow), inset 0 0 20px var(--school-bus-yellow);
         }
 
         .freq-value { 
-            font-size: 3.5rem; 
+            font-size: 3.8rem; 
             color: var(--gold); 
             text-shadow: 0 0 20px var(--school-bus-yellow); 
-            margin: 0;
+            margin: 5px 0;
             font-weight: 900;
             letter-spacing: 5px;
         }
 
-        /* Botón PTT Futurista */
+        /* BOTÓN PTT */
         #pushToTalk { 
             width: 160px; height: 160px; border-radius: 50%;
             background: transparent;
-            border: 4px double var(--school-bus-yellow);
+            border: 2px solid var(--oxford-navy);
             color: var(--gold); 
+            font-family: 'Orbitron', sans-serif;
             font-weight: bold;
             cursor: pointer;
-            box-shadow: 0 0 20px var(--oxford-navy);
-            position: relative;
-            z-index: 105;
             transition: 0.2s;
             text-transform: uppercase;
+            letter-spacing: 2px;
+            position: relative;
             -webkit-tap-highlight-color: transparent;
         }
 
         #pushToTalk:active {
-            background: rgba(255, 195, 0, 0.2);
-            transform: scale(0.9);
-            box-shadow: 0 0 40px var(--gold);
+            transform: scale(0.92);
+            border-color: #ffffff;
+            box-shadow: 0 0 40px rgba(255, 255, 255, 0.3);
+            color: #fff;
         }
 
-        /* Anillos animados */
-        .ring {
+        /* ELEMENTOS DECORATIVOS */
+        .ring-decor {
             position: absolute;
             border: 1px solid var(--oxford-navy);
             border-radius: 50%;
-            animation: rotate 10s linear infinite;
+            opacity: 0.4;
+            animation: rotate 20s linear infinite;
         }
         @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-        /* Estilos de inputs */
+        .label { font-size: 0.65rem; letter-spacing: 3px; color: var(--oxford-navy); font-weight: bold; }
+
         input { 
             background: transparent; border: 1px solid var(--oxford-navy); 
-            color: var(--gold); padding: 10px; font-size: 1.5rem; width: 120px; 
-            text-align: center; border-radius: 4px; outline: none;
-            text-shadow: 0 0 5px var(--gold);
+            color: var(--gold); padding: 12px; font-size: 1.5rem; width: 100px; 
+            text-align: center; border-radius: 4px; font-family: 'Orbitron';
         }
 
         button#joinBtn { 
-            padding: 10px 20px; background: var(--oxford-navy); 
+            padding: 12px 25px; background: var(--oxford-navy); 
             color: var(--gold); border: 1px solid var(--school-bus-yellow); 
-            cursor: pointer; font-weight: bold; letter-spacing: 2px;
+            cursor: pointer; font-family: 'Orbitron'; font-weight: bold;
         }
-
-        .led { width: 100%; height: 2px; background: var(--oxford-navy); position: absolute; top: 50%; }
-        .led.active { background: #ff0000; box-shadow: 0 0 20px #ff0000; }
-        .led.receiving { background: var(--gold); box-shadow: 0 0 20px var(--gold); }
-
     </style>
-    <!-- Fuente futurista -->
-    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&display=swap" rel="stylesheet">
 </head>
 <body>
 
     <div class="main-container">
-        <div class="jarvis-hud">
-            <!-- Anillos decorativos -->
-            <div class="ring" style="width: 280px; height: 280px; border-style: dashed;"></div>
-            <div class="ring" style="width: 240px; height: 240px; border-width: 4px; border-color: var(--oxford-navy); opacity: 0.3;"></div>
+        <div class="jarvis-hud" id="hudBox">
+            <!-- Anillo dinámico -->
+            <div id="statusRing" class="status-ring"></div>
             
-            <div class="freq-label" style="font-size: 0.6rem; letter-spacing: 3px;">SIGNAL_STATUS</div>
+            <!-- Decoración Jarvis -->
+            <div class="ring-decor" style="width: 340px; height: 340px; border-style: dashed;"></div>
+            
+            <div class="label">SIGNAL_ID</div>
             <div id="displayCode" class="freq-value">----</div>
-            <div id="statusIndicator" style="font-size: 0.7rem;">SYSTEM_OFFLINE</div>
-            <div id="led" class="led"></div>
+            <div id="statusIndicator" style="font-size: 0.7rem; color: var(--oxford-navy);">OFFLINE</div>
         </div>
         
-        <div class="controls" id="setupSection" style="text-align: center;">
-            <input type="number" id="roomInput" placeholder="ID">
-            <button id="joinBtn">INITIALIZE</button>
+        <div class="controls" id="setupSection">
+            <input type="number" id="roomInput" placeholder="CODE">
+            <button id="joinBtn">SYNC</button>
         </div>
 
-        <div id="pttSection" style="display: none; text-align: center;">
+        <div id="pttSection" style="display: none;">
             <button id="pushToTalk">TRANSMIT</button>
-            <p id="pttStatus" style="font-size: 0.7rem; margin-top: 20px; letter-spacing: 2px;">READY TO COMMS</p>
+            <p id="pttStatus" style="font-size: 0.7rem; margin-top: 25px; letter-spacing: 3px; opacity: 0.6;">SYSTEM_READY</p>
         </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        // Mantén toda la lógica de JavaScript anterior (AudioContext, Sockets, etc.)
-        // Solo asegúrate de actualizar los IDs si han cambiado (aunque he mantenido los mismos)
         const socket = io();
-        const roomInput = document.getElementById('roomInput');
-        const joinBtn = document.getElementById('joinBtn');
-        const talkBtn = document.getElementById('pushToTalk');
-        const displayCode = document.getElementById('displayCode');
-        const led = document.getElementById('led');
-        const statusText = document.getElementById('statusIndicator');
+        const statusRing = document.getElementById('statusRing');
         const pttStatus = document.getElementById('pttStatus');
-
+        const statusIndicator = document.getElementById('statusIndicator');
+        const talkBtn = document.getElementById('pushToTalk');
+        
         let currentRoom = null;
         let mediaRecorder;
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
-        const audioCtx = new AudioContext();
-
-        function playTone(freq, dur, start) {
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.frequency.value = freq;
-            gain.gain.setValueAtTime(0.1, audioCtx.currentTime + start);
-            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + start + dur);
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.start(audioCtx.currentTime + start); osc.stop(audioCtx.currentTime + start + dur);
+        function playTone(f, d, s) {
+            const o = audioCtx.createOscillator();
+            const g = audioCtx.createGain();
+            o.frequency.value = f;
+            g.gain.setValueAtTime(0.05, audioCtx.currentTime + s);
+            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + s + d);
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start(audioCtx.currentTime + s); o.stop(audioCtx.currentTime + s + d);
         }
 
         navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
@@ -191,52 +195,54 @@
             const startTalk = (e) => {
                 e.preventDefault();
                 if(mediaRecorder.state === "inactive") {
-                    playTone(600, 0.1, 0);
+                    playTone(800, 0.1, 0);
                     mediaRecorder.start(100);
-                    led.classList.add('active');
-                    pttStatus.innerText = "UPLINK_ACTIVE";
+                    statusRing.classList.add('transmitting');
+                    pttStatus.innerText = "UPLINK_ESTABLISHED";
+                    pttStatus.style.color = "#fff";
                 }
             };
 
-            const stopTalk = (e) => {
-                e.preventDefault();
+            const stopTalk = () => {
                 if(mediaRecorder.state === "recording") {
                     mediaRecorder.stop();
-                    playTone(900, 0.1, 0); playTone(1200, 0.1, 0.1);
-                    led.classList.remove('active');
-                    pttStatus.innerText = "READY_TO_COMMS";
+                    playTone(1200, 0.1, 0);
+                    statusRing.classList.remove('transmitting');
+                    pttStatus.innerText = "SYSTEM_READY";
+                    pttStatus.style.color = "var(--gold)";
                 }
             };
 
             talkBtn.onmousedown = talkBtn.ontouchstart = startTalk;
             talkBtn.onmouseup = talkBtn.ontouchend = stopTalk;
+        });
 
-        }).catch(err => console.log(err));
-
-        joinBtn.onclick = () => {
-            const code = roomInput.value;
+        document.getElementById('joinBtn').onclick = () => {
+            const code = document.getElementById('roomInput').value;
             if(code.length >= 1) {
                 if(audioCtx.state === 'suspended') audioCtx.resume();
                 currentRoom = code;
                 socket.emit('join-room', code);
-                displayCode.innerText = code.padStart(4, '0');
+                document.getElementById('displayCode').innerText = code.padStart(4, '0');
                 document.getElementById('setupSection').style.display = 'none';
                 document.getElementById('pttSection').style.display = 'block';
-                statusText.innerText = "COMMS_ESTABLISHED";
+                statusIndicator.innerText = "ENCRYPTED_LINK";
+                statusIndicator.style.color = "var(--gold)";
             }
         };
 
-        socket.on('audio-stream', async (blobData) => {
-            led.classList.add('receiving');
-            const blob = new Blob([blobData], { type: 'audio/webm' });
-            const audio = new Audio(URL.createObjectURL(blob));
+        socket.on('audio-stream', (blobData) => {
+            statusRing.classList.add('receiving');
+            const audio = new Audio(URL.createObjectURL(new Blob([blobData])));
             audio.play();
             audio.onended = () => {
-                playTone(1000, 0.1, 0); led.classList.remove('receiving');
+                statusRing.classList.remove('receiving');
+                playTone(1000, 0.05, 0);
             };
         });
     </script>
 </body>
+</html>
 </html>
 </body>
 </html>
