@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Walkie-Talkie Online</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; background: #1a1a1a; color: white; padding: 20px; }
+        .controls { margin-bottom: 30px; background: #333; padding: 20px; border-radius: 15px; }
+        input { padding: 10px; font-size: 1.2rem; width: 100px; text-align: center; border-radius: 5px; border: none; }
+        button#joinBtn { padding: 10px 20px; font-size: 1rem; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        
+        #pushToTalk { 
+            width: 220px; height: 220px; border-radius: 50%; border: 8px solid #444;
+            background: #e74c3c; color: white; font-weight: bold; font-size: 1.2rem;
+            cursor: pointer; transition: 0.2s; box-shadow: 0 10px 20px rgba(0,0,0,0.5);
+            display: none; margin: 0 auto;
+        }
+        #pushToTalk:active { background: #c0392b; transform: scale(0.95); border-color: #ff5e4d; }
+        #status { margin-top: 20px; font-style: italic; color: #aaa; }
+        .active-room { color: #2ecc71; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h2>Walkie-Talkie Global</h2>
+    
+    <div class="controls">
+        <input type="text" id="roomInput" placeholder="0000" maxlength="4">
+        <button id="joinBtn">ENTRAR AL CANAL</button>
+        <p id="roomDisplay">No conectado</p>
+    </div>
+
+    <button id="pushToTalk">MANTENER PARA HABLAR</button>
+    <div id="status">Ingresa un código para empezar</div>
+
+    <!-- Cargamos la librería de Socket.io desde el servidor -->
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+        const socket = io(); // Se conecta automáticamente a la URL actual
+        const roomInput = document.getElementById('roomInput');
+        const joinBtn = document.getElementById('joinBtn');
+        const talkBtn = document.getElementById('pushToTalk');
+        const status = document.getElementById('status');
+        const roomDisplay = document.getElementById('roomDisplay');
+
+        let currentRoom = null;
+        let mediaRecorder;
+
+        // Configuración del Micro
+        navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+            mediaRecorder = new MediaRecorder(stream);
+
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0 && currentRoom) {
+                    socket.emit('audio-stream', {
+                        room: currentRoom,
+                        blob: e.data
+                    });
+                }
+            };
+
+            // Eventos del botón
+            talkBtn.onmousedown = talkBtn.ontouchstart = (e) => {
+                e.preventDefault();
+                mediaRecorder.start(100); // Trozos de 100ms para rapidez
+                status.innerText = "HABLANDO...";
+                status.style.color = "#e74c3c";
+            };
+
+            talkBtn.onmouseup = talkBtn.ontouchend = () => {
+                mediaRecorder.stop();
+                status.innerText = "ESCUCHANDO...";
+                status.style.color = "#aaa";
+            };
+        }).catch(err => {
+            alert("Error al acceder al micro: " + err);
+        });
+
+        // Unirse a sala
+        joinBtn.onclick = () => {
+            const code = roomInput.value;
+            if(code.length === 4) {
+                currentRoom = code;
+                socket.emit('join-room', code);
+                roomDisplay.innerHTML = `Conectado al canal: <span class="active-room">${code}</span>`;
+                talkBtn.style.display = "block";
+                status.innerText = "Listo para hablar";
+            } else {
+                alert("Pon un código de 4 números");
+            }
+        };
+
+        // Recibir audio de otros
+        socket.on('audio-stream', async (blobData) => {
+            const blob = new Blob([blobData], { type: 'audio/webm' });
+            const audio = new Audio(URL.createObjectURL(blob));
+            audio.play();
+        });
+    </script>
+</body>
+</html>
