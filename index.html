@@ -2,99 +2,288 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Walkie-Talkie Online</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Walkie-Talkie Pro</title>
     <style>
-        body { font-family: sans-serif; text-align: center; background: #1a1a1a; color: white; padding: 20px; }
-        .controls { margin-bottom: 30px; background: #333; padding: 20px; border-radius: 15px; }
-        input { padding: 10px; font-size: 1.2rem; width: 100px; text-align: center; border-radius: 5px; border: none; }
-        button#joinBtn { padding: 10px 20px; font-size: 1rem; background: #27ae60; color: white; border: none; border-radius: 5px; cursor: pointer; }
-        
-        #pushToTalk { 
-            width: 220px; height: 220px; border-radius: 50%; border: 8px solid #444;
-            background: #e74c3c; color: white; font-weight: bold; font-size: 1.2rem;
-            cursor: pointer; transition: 0.2s; box-shadow: 0 10px 20px rgba(0,0,0,0.5);
-            display: none; margin: 0 auto;
+        :root {
+            /* Nueva paleta de colores */
+            --ink-black: #000814;
+            --prussian-blue: #001D3D;
+            --oxford-navy: #003566;
+            --school-bus-yellow: #FFC300;
+            --gold: #FFD60A;
+            --text-color: #e0e0e0;
         }
-        #pushToTalk:active { background: #c0392b; transform: scale(0.95); border-color: #ff5e4d; }
-        #status { margin-top: 20px; font-style: italic; color: #aaa; }
-        .active-room { color: #2ecc71; font-weight: bold; }
+
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            background-color: var(--ink-black); 
+            color: var(--text-color);
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Pantalla de "Frecuencia" */
+        .screen {
+            background: var(--prussian-blue);
+            border: 4px solid var(--oxford-navy);
+            border-radius: 12px;
+            padding: 25px;
+            width: 260px;
+            margin-bottom: 35px;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8), 0 5px 15px rgba(0,0,0,0.5);
+            text-align: center;
+        }
+
+        .freq-label { 
+            font-size: 0.75rem; 
+            color: var(--school-bus-yellow); 
+            letter-spacing: 2px; 
+            text-transform: uppercase; 
+            opacity: 0.8;
+        }
+        
+        .freq-value { 
+            font-family: 'Courier New', Courier, monospace; 
+            font-size: 3rem; 
+            color: var(--gold); 
+            text-shadow: 0 0 15px rgba(255, 195, 0, 0.4); 
+            margin: 10px 0; 
+            font-weight: bold;
+        }
+
+        /* Controles de Canal */
+        .controls { margin-bottom: 20px; }
+        input { 
+            background: var(--prussian-blue); 
+            border: 2px solid var(--oxford-navy); 
+            color: var(--gold); 
+            padding: 12px; 
+            font-size: 1.2rem; 
+            width: 90px; 
+            text-align: center; 
+            border-radius: 8px;
+            outline: none;
+            font-weight: bold;
+        }
+        input:focus {
+            border-color: var(--school-bus-yellow);
+        }
+        
+        button#joinBtn { 
+            padding: 14px 24px; 
+            font-weight: bold; 
+            background: var(--school-bus-yellow); 
+            color: var(--ink-black);
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            transition: 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        button#joinBtn:hover { 
+            background: var(--gold); 
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(255, 214, 10, 0.3);
+        }
+
+        /* Botón PTT (Push To Talk) */
+        .ptt-container {
+            position: relative;
+            display: none; /* Se activa al conectar */
+            text-align: center;
+        }
+
+        #pushToTalk { 
+            width: 190px; height: 190px; border-radius: 50%;
+            background: radial-gradient(circle, var(--gold) 0%, var(--school-bus-yellow) 100%);
+            border: 12px solid var(--oxford-navy);
+            color: var(--ink-black); 
+            font-weight: 900; 
+            font-size: 1.1rem;
+            cursor: pointer;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.8), inset 2px 2px 10px rgba(255,255,255,0.4);
+            outline: none;
+            -webkit-tap-highlight-color: transparent;
+            display: flex; align-items: center; justify-content: center; text-align: center;
+            transition: all 0.1s ease;
+            text-transform: uppercase;
+        }
+
+        #pushToTalk:active {
+            background: var(--school-bus-yellow);
+            transform: scale(0.95);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.6);
+            border-color: var(--prussian-blue);
+        }
+
+        /* Luz de estado (LED) */
+        .led {
+            width: 16px; height: 16px; background: var(--prussian-blue); border-radius: 50%;
+            margin: 0 auto 15px auto; transition: 0.3s; border: 2px solid var(--oxford-navy);
+        }
+        .led.active { 
+            background: #ff3333; 
+            box-shadow: 0 0 15px #ff3333; 
+            border-color: #ff3333;
+        }
+        .led.receiving { 
+            background: var(--gold); 
+            box-shadow: 0 0 15px var(--gold); 
+            border-color: var(--gold);
+        }
+
+        .status-text { font-size: 0.85rem; color: #888; margin-top: 15px; text-transform: uppercase; letter-spacing: 1px;}
+        .status-text.active-text { color: var(--gold); font-weight: bold; }
+
     </style>
 </head>
 <body>
-    <h2>Walkie-Talkie Global</h2>
+
+    <div class="screen">
+        <div class="freq-label">Canal Encriptado</div>
+        <div id="displayCode" class="freq-value">----</div>
+        <div id="statusIndicator" class="status-text">Sin Señal</div>
+    </div>
     
-    <div class="controls">
-        <input type="text" id="roomInput" placeholder="0000" maxlength="4">
-        <button id="joinBtn">ENTRAR AL CANAL</button>
-        <p id="roomDisplay">No conectado</p>
+    <div class="controls" id="setupSection">
+        <input type="number" id="roomInput" placeholder="0000" pattern="\d*">
+        <button id="joinBtn">Sintonizar</button>
     </div>
 
-    <button id="pushToTalk">MANTENER PARA HABLAR</button>
-    <div id="status">Ingresa un código para empezar</div>
+    <div class="ptt-container" id="pttSection">
+        <div id="led" class="led"></div>
+        <button id="pushToTalk">MANTENER<br>PARA HABLAR</button>
+        <p id="pttStatus" class="status-text">Presiona para transmitir</p>
+    </div>
 
-    <!-- Cargamos la librería de Socket.io desde el servidor -->
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        const socket = io(); // Se conecta automáticamente a la URL actual
+        const socket = io();
         const roomInput = document.getElementById('roomInput');
         const joinBtn = document.getElementById('joinBtn');
         const talkBtn = document.getElementById('pushToTalk');
-        const status = document.getElementById('status');
-        const roomDisplay = document.getElementById('roomDisplay');
+        const displayCode = document.getElementById('displayCode');
+        const led = document.getElementById('led');
+        const statusText = document.getElementById('statusIndicator');
+        const pttStatus = document.getElementById('pttStatus');
 
         let currentRoom = null;
         let mediaRecorder;
 
+        // --- SISTEMA DE SONIDOS (Sintetizador Web Audio API) ---
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const audioCtx = new AudioContext();
+
+        function playTone(frequency, duration, startTime) {
+            if(audioCtx.state === 'suspended') audioCtx.resume();
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+            
+            oscillator.type = 'sine';
+            oscillator.frequency.value = frequency;
+            
+            // Efecto de fade out rápido para que suene como un dispositivo electrónico
+            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime + startTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + startTime + duration);
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            oscillator.start(audioCtx.currentTime + startTime);
+            oscillator.stop(audioCtx.currentTime + startTime + duration);
+        }
+
+        function playStartBeep() {
+            playTone(800, 0.1, 0); // Un pitido corto y grave
+        }
+
+        function playRogerBeep() {
+            // El clásico doble pitido agudo al terminar
+            playTone(1200, 0.1, 0);
+            playTone(1600, 0.15, 0.12);
+        }
+        // -------------------------------------------------------
+
         // Configuración del Micro
         navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
             mediaRecorder = new MediaRecorder(stream);
-
             mediaRecorder.ondataavailable = (e) => {
                 if (e.data.size > 0 && currentRoom) {
-                    socket.emit('audio-stream', {
-                        room: currentRoom,
-                        blob: e.data
-                    });
+                    socket.emit('audio-stream', { room: currentRoom, blob: e.data });
                 }
             };
 
-            // Eventos del botón
-            talkBtn.onmousedown = talkBtn.ontouchstart = (e) => {
+            // Eventos táctiles y mouse
+            const startTalk = (e) => {
                 e.preventDefault();
-                mediaRecorder.start(100); // Trozos de 100ms para rapidez
-                status.innerText = "HABLANDO...";
-                status.style.color = "#e74c3c";
+                if(mediaRecorder.state === "inactive") {
+                    playStartBeep(); // Suena al presionar
+                    mediaRecorder.start(100);
+                    led.classList.add('active');
+                    pttStatus.innerText = "TRANSMITIENDO...";
+                    pttStatus.classList.add('active-text');
+                }
             };
 
-            talkBtn.onmouseup = talkBtn.ontouchend = () => {
-                mediaRecorder.stop();
-                status.innerText = "ESCUCHANDO...";
-                status.style.color = "#aaa";
+            const stopTalk = (e) => {
+                e.preventDefault();
+                if(mediaRecorder.state === "recording") {
+                    mediaRecorder.stop();
+                    playRogerBeep(); // Suena al soltar
+                    led.classList.remove('active');
+                    pttStatus.innerText = "En espera";
+                    pttStatus.classList.remove('active-text');
+                }
             };
-        }).catch(err => {
-            alert("Error al acceder al micro: " + err);
-        });
 
-        // Unirse a sala
+            talkBtn.onmousedown = talkBtn.ontouchstart = startTalk;
+            talkBtn.onmouseup = talkBtn.ontouchend = stopTalk;
+            talkBtn.onmouseleave = talkBtn.ontouchcancel = () => {
+                if(mediaRecorder.state === "recording") stopTalk(new Event('mouseleave'));
+            };
+
+        }).catch(err => alert("Activa el micro para usar la app"));
+
+        // Join
         joinBtn.onclick = () => {
             const code = roomInput.value;
-            if(code.length === 4) {
+            if(code.length >= 1) {
+                // Desbloqueamos el audio context por si el navegador lo tenía en pausa
+                if(audioCtx.state === 'suspended') audioCtx.resume();
+                
                 currentRoom = code;
                 socket.emit('join-room', code);
-                roomDisplay.innerHTML = `Conectado al canal: <span class="active-room">${code}</span>`;
-                talkBtn.style.display = "block";
-                status.innerText = "Listo para hablar";
-            } else {
-                alert("Pon un código de 4 números");
+                displayCode.innerText = code.padStart(4, '0');
+                document.getElementById('setupSection').style.display = 'none';
+                document.getElementById('pttSection').style.display = 'block';
+                statusText.innerText = "Conectado";
+                statusText.style.color = "var(--school-bus-yellow)";
             }
         };
 
-        // Recibir audio de otros
+        // Recibir audio
         socket.on('audio-stream', async (blobData) => {
+            led.classList.add('receiving');
+            pttStatus.innerText = "RECIBIENDO...";
+            
             const blob = new Blob([blobData], { type: 'audio/webm' });
             const audio = new Audio(URL.createObjectURL(blob));
+            
             audio.play();
+            
+            // Cuando la otra persona deja de hablar y termina el audio, suena el roger beep
+            audio.onended = () => {
+                playRogerBeep(); 
+                led.classList.remove('receiving');
+                pttStatus.innerText = "En espera";
+            };
         });
     </script>
 </body>
