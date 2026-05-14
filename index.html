@@ -3,22 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Walkie-Talkie Pro</title>
+    <title>JARVIS Walkie-Talkie</title>
     <style>
         :root {
-            /* Nueva paleta de colores */
             --ink-black: #000814;
             --prussian-blue: #001D3D;
             --oxford-navy: #003566;
             --school-bus-yellow: #FFC300;
             --gold: #FFD60A;
-            --text-color: #e0e0e0;
+            --scanline-color: rgba(0, 0, 0, 0.3);
         }
 
         body { 
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            font-family: 'Orbitron', 'Segoe UI', sans-serif; 
             background-color: var(--ink-black); 
-            color: var(--text-color);
+            color: var(--gold);
             margin: 0;
             display: flex;
             flex-direction: column;
@@ -26,145 +25,136 @@
             justify-content: center;
             height: 100vh;
             overflow: hidden;
+            background-image: radial-gradient(circle at center, var(--oxford-navy) 0%, var(--ink-black) 80%);
         }
 
-        /* Pantalla de "Frecuencia" */
-        .screen {
-            background: var(--prussian-blue);
-            border: 4px solid var(--oxford-navy);
-            border-radius: 12px;
-            padding: 25px;
-            width: 260px;
-            margin-bottom: 35px;
-            box-shadow: inset 0 0 20px rgba(0,0,0,0.8), 0 5px 15px rgba(0,0,0,0.5);
-            text-align: center;
+        /* CAPA DE LÍNEAS LCD (Como image_850001.png) */
+        body::before {
+            content: " ";
+            position: fixed;
+            top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(var(--scanline-color) 50%, transparent 50%);
+            background-size: 100% 4px;
+            z-index: 100;
+            pointer-events: none;
+            opacity: 0.4;
         }
 
-        .freq-label { 
-            font-size: 0.75rem; 
-            color: var(--school-bus-yellow); 
-            letter-spacing: 2px; 
-            text-transform: uppercase; 
-            opacity: 0.8;
+        /* Efecto de parpadeo sutil de pantalla antigua */
+        @keyframes flicker {
+            0% { opacity: 0.97; }
+            5% { opacity: 0.95; }
+            10% { opacity: 0.99; }
+            100% { opacity: 1; }
         }
-        
-        .freq-value { 
-            font-family: 'Courier New', Courier, monospace; 
-            font-size: 3rem; 
-            color: var(--gold); 
-            text-shadow: 0 0 15px rgba(255, 195, 0, 0.4); 
-            margin: 10px 0; 
-            font-weight: bold;
-        }
+        .main-container { animation: flicker 0.1s infinite; z-index: 10; }
 
-        /* Controles de Canal */
-        .controls { margin-bottom: 20px; }
-        input { 
-            background: var(--prussian-blue); 
-            border: 2px solid var(--oxford-navy); 
-            color: var(--gold); 
-            padding: 12px; 
-            font-size: 1.2rem; 
-            width: 90px; 
-            text-align: center; 
-            border-radius: 8px;
-            outline: none;
-            font-weight: bold;
-        }
-        input:focus {
-            border-color: var(--school-bus-yellow);
-        }
-        
-        button#joinBtn { 
-            padding: 14px 24px; 
-            font-weight: bold; 
-            background: var(--school-bus-yellow); 
-            color: var(--ink-black);
-            border: none; 
-            border-radius: 8px; 
-            cursor: pointer; 
-            transition: 0.3s;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        button#joinBtn:hover { 
-            background: var(--gold); 
-            transform: translateY(-2px);
-            box-shadow: 0 4px 10px rgba(255, 214, 10, 0.3);
-        }
-
-        /* Botón PTT (Push To Talk) */
-        .ptt-container {
+        /* Pantalla Principal Circular Estilo Jarvis */
+        .jarvis-hud {
             position: relative;
-            display: none; /* Se activa al conectar */
-            text-align: center;
+            width: 300px;
+            height: 300px;
+            border-radius: 50%;
+            border: 2px solid var(--oxford-navy);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 0 50px rgba(0, 53, 102, 0.5), inset 0 0 30px rgba(0, 53, 102, 0.5);
+            margin-bottom: 20px;
         }
 
+        .freq-value { 
+            font-size: 3.5rem; 
+            color: var(--gold); 
+            text-shadow: 0 0 20px var(--school-bus-yellow); 
+            margin: 0;
+            font-weight: 900;
+            letter-spacing: 5px;
+        }
+
+        /* Botón PTT Futurista */
         #pushToTalk { 
-            width: 190px; height: 190px; border-radius: 50%;
-            background: radial-gradient(circle, var(--gold) 0%, var(--school-bus-yellow) 100%);
-            border: 12px solid var(--oxford-navy);
-            color: var(--ink-black); 
-            font-weight: 900; 
-            font-size: 1.1rem;
+            width: 160px; height: 160px; border-radius: 50%;
+            background: transparent;
+            border: 4px double var(--school-bus-yellow);
+            color: var(--gold); 
+            font-weight: bold;
             cursor: pointer;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.8), inset 2px 2px 10px rgba(255,255,255,0.4);
-            outline: none;
-            -webkit-tap-highlight-color: transparent;
-            display: flex; align-items: center; justify-content: center; text-align: center;
-            transition: all 0.1s ease;
+            box-shadow: 0 0 20px var(--oxford-navy);
+            position: relative;
+            z-index: 105;
+            transition: 0.2s;
             text-transform: uppercase;
+            -webkit-tap-highlight-color: transparent;
         }
 
         #pushToTalk:active {
-            background: var(--school-bus-yellow);
-            transform: scale(0.95);
-            box-shadow: 0 5px 15px rgba(0,0,0,0.6);
-            border-color: var(--prussian-blue);
+            background: rgba(255, 195, 0, 0.2);
+            transform: scale(0.9);
+            box-shadow: 0 0 40px var(--gold);
         }
 
-        /* Luz de estado (LED) */
-        .led {
-            width: 16px; height: 16px; background: var(--prussian-blue); border-radius: 50%;
-            margin: 0 auto 15px auto; transition: 0.3s; border: 2px solid var(--oxford-navy);
+        /* Anillos animados */
+        .ring {
+            position: absolute;
+            border: 1px solid var(--oxford-navy);
+            border-radius: 50%;
+            animation: rotate 10s linear infinite;
         }
-        .led.active { 
-            background: #ff3333; 
-            box-shadow: 0 0 15px #ff3333; 
-            border-color: #ff3333;
-        }
-        .led.receiving { 
-            background: var(--gold); 
-            box-shadow: 0 0 15px var(--gold); 
-            border-color: var(--gold);
+        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+        /* Estilos de inputs */
+        input { 
+            background: transparent; border: 1px solid var(--oxford-navy); 
+            color: var(--gold); padding: 10px; font-size: 1.5rem; width: 120px; 
+            text-align: center; border-radius: 4px; outline: none;
+            text-shadow: 0 0 5px var(--gold);
         }
 
-        .status-text { font-size: 0.85rem; color: #888; margin-top: 15px; text-transform: uppercase; letter-spacing: 1px;}
-        .status-text.active-text { color: var(--gold); font-weight: bold; }
+        button#joinBtn { 
+            padding: 10px 20px; background: var(--oxford-navy); 
+            color: var(--gold); border: 1px solid var(--school-bus-yellow); 
+            cursor: pointer; font-weight: bold; letter-spacing: 2px;
+        }
+
+        .led { width: 100%; height: 2px; background: var(--oxford-navy); position: absolute; top: 50%; }
+        .led.active { background: #ff0000; box-shadow: 0 0 20px #ff0000; }
+        .led.receiving { background: var(--gold); box-shadow: 0 0 20px var(--gold); }
 
     </style>
+    <!-- Fuente futurista -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&display=swap" rel="stylesheet">
 </head>
 <body>
 
-    <div class="screen">
-        <div class="freq-label">Canal Encriptado</div>
-        <div id="displayCode" class="freq-value">----</div>
-        <div id="statusIndicator" class="status-text">Sin Señal</div>
-    </div>
-    
-    <div class="controls" id="setupSection">
-        <input type="number" id="roomInput" placeholder="0000" pattern="\d*">
-        <button id="joinBtn">Sintonizar</button>
-    </div>
+    <div class="main-container">
+        <div class="jarvis-hud">
+            <!-- Anillos decorativos -->
+            <div class="ring" style="width: 280px; height: 280px; border-style: dashed;"></div>
+            <div class="ring" style="width: 240px; height: 240px; border-width: 4px; border-color: var(--oxford-navy); opacity: 0.3;"></div>
+            
+            <div class="freq-label" style="font-size: 0.6rem; letter-spacing: 3px;">SIGNAL_STATUS</div>
+            <div id="displayCode" class="freq-value">----</div>
+            <div id="statusIndicator" style="font-size: 0.7rem;">SYSTEM_OFFLINE</div>
+            <div id="led" class="led"></div>
+        </div>
+        
+        <div class="controls" id="setupSection" style="text-align: center;">
+            <input type="number" id="roomInput" placeholder="ID">
+            <button id="joinBtn">INITIALIZE</button>
+        </div>
 
-    <div class="ptt-container" id="pttSection">
-        <div id="led" class="led"></div>
-        <button id="pushToTalk">MANTENER<br>PARA HABLAR</button>
-        <p id="pttStatus" class="status-text">Presiona para transmitir</p>
+        <div id="pttSection" style="display: none; text-align: center;">
+            <button id="pushToTalk">TRANSMIT</button>
+            <p id="pttStatus" style="font-size: 0.7rem; margin-top: 20px; letter-spacing: 2px;">READY TO COMMS</p>
+        </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
+        // Mantén toda la lógica de JavaScript anterior (AudioContext, Sockets, etc.)
+        // Solo asegúrate de actualizar los IDs si han cambiado (aunque he mantenido los mismos)
         const socket = io();
         const roomInput = document.getElementById('roomInput');
         const joinBtn = document.getElementById('joinBtn');
@@ -177,41 +167,19 @@
         let currentRoom = null;
         let mediaRecorder;
 
-        // --- SISTEMA DE SONIDOS (Sintetizador Web Audio API) ---
         const AudioContext = window.AudioContext || window.webkitAudioContext;
         const audioCtx = new AudioContext();
 
-        function playTone(frequency, duration, startTime) {
-            if(audioCtx.state === 'suspended') audioCtx.resume();
-            const oscillator = audioCtx.createOscillator();
-            const gainNode = audioCtx.createGain();
-            
-            oscillator.type = 'sine';
-            oscillator.frequency.value = frequency;
-            
-            // Efecto de fade out rápido para que suene como un dispositivo electrónico
-            gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime + startTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + startTime + duration);
-            
-            oscillator.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            
-            oscillator.start(audioCtx.currentTime + startTime);
-            oscillator.stop(audioCtx.currentTime + startTime + duration);
+        function playTone(freq, dur, start) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.1, audioCtx.currentTime + start);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + start + dur);
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.start(audioCtx.currentTime + start); osc.stop(audioCtx.currentTime + start + dur);
         }
 
-        function playStartBeep() {
-            playTone(800, 0.1, 0); // Un pitido corto y grave
-        }
-
-        function playRogerBeep() {
-            // El clásico doble pitido agudo al terminar
-            playTone(1200, 0.1, 0);
-            playTone(1600, 0.15, 0.12);
-        }
-        // -------------------------------------------------------
-
-        // Configuración del Micro
         navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
             mediaRecorder = new MediaRecorder(stream);
             mediaRecorder.ondataavailable = (e) => {
@@ -220,15 +188,13 @@
                 }
             };
 
-            // Eventos táctiles y mouse
             const startTalk = (e) => {
                 e.preventDefault();
                 if(mediaRecorder.state === "inactive") {
-                    playStartBeep(); // Suena al presionar
+                    playTone(600, 0.1, 0);
                     mediaRecorder.start(100);
                     led.classList.add('active');
-                    pttStatus.innerText = "TRANSMITIENDO...";
-                    pttStatus.classList.add('active-text');
+                    pttStatus.innerText = "UPLINK_ACTIVE";
                 }
             };
 
@@ -236,55 +202,41 @@
                 e.preventDefault();
                 if(mediaRecorder.state === "recording") {
                     mediaRecorder.stop();
-                    playRogerBeep(); // Suena al soltar
+                    playTone(900, 0.1, 0); playTone(1200, 0.1, 0.1);
                     led.classList.remove('active');
-                    pttStatus.innerText = "En espera";
-                    pttStatus.classList.remove('active-text');
+                    pttStatus.innerText = "READY_TO_COMMS";
                 }
             };
 
             talkBtn.onmousedown = talkBtn.ontouchstart = startTalk;
             talkBtn.onmouseup = talkBtn.ontouchend = stopTalk;
-            talkBtn.onmouseleave = talkBtn.ontouchcancel = () => {
-                if(mediaRecorder.state === "recording") stopTalk(new Event('mouseleave'));
-            };
 
-        }).catch(err => alert("Activa el micro para usar la app"));
+        }).catch(err => console.log(err));
 
-        // Join
         joinBtn.onclick = () => {
             const code = roomInput.value;
             if(code.length >= 1) {
-                // Desbloqueamos el audio context por si el navegador lo tenía en pausa
                 if(audioCtx.state === 'suspended') audioCtx.resume();
-                
                 currentRoom = code;
                 socket.emit('join-room', code);
                 displayCode.innerText = code.padStart(4, '0');
                 document.getElementById('setupSection').style.display = 'none';
                 document.getElementById('pttSection').style.display = 'block';
-                statusText.innerText = "Conectado";
-                statusText.style.color = "var(--school-bus-yellow)";
+                statusText.innerText = "COMMS_ESTABLISHED";
             }
         };
 
-        // Recibir audio
         socket.on('audio-stream', async (blobData) => {
             led.classList.add('receiving');
-            pttStatus.innerText = "RECIBIENDO...";
-            
             const blob = new Blob([blobData], { type: 'audio/webm' });
             const audio = new Audio(URL.createObjectURL(blob));
-            
             audio.play();
-            
-            // Cuando la otra persona deja de hablar y termina el audio, suena el roger beep
             audio.onended = () => {
-                playRogerBeep(); 
-                led.classList.remove('receiving');
-                pttStatus.innerText = "En espera";
+                playTone(1000, 0.1, 0); led.classList.remove('receiving');
             };
         });
     </script>
+</body>
+</html>
 </body>
 </html>
