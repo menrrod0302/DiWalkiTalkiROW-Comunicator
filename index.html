@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>JARVIS Classic Comms</title>
+    <title>JARVIS Realtime Stream</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -141,11 +141,17 @@
         const volumeDisplay = document.getElementById("volume-display");
         
         let currentRoom = null;
-        let mediaRecorder;
         let currentVolume = 0.8;
-        let audioChunks = []; 
+        let isTransmitting = false;
         
+        // Motor de Audio Avanzado
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        let processorNode;
+        let microphoneStream;
+
+        // Variables críticas de sincronización (Jitter Buffer)
+        let nextStartTime = 0;
+        let lastReceivingTime = 0;
 
         menuBtn.onclick = () => settingsMenu.classList.toggle("hidden");
         volumeSlider.oninput = (e) => {
@@ -158,50 +164,48 @@
             const g = audioCtx.createGain();
             o.frequency.value = f;
             g.gain.setValueAtTime(0.02, audioCtx.currentTime + s);
-            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + s + d); // <-- CORREGIDO AQUÍ
+            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + s + d);
             o.connect(g); g.connect(audioCtx.destination);
             o.start(audioCtx.currentTime + s); o.stop(audioCtx.currentTime + s + d);
         }
 
+        // Captura directa de datos flotantes puros del micrófono
         navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+            microphoneStream = audioCtx.createMediaStreamSource(stream);
             
-            mediaRecorder.ondataavailable = (e) => {
-                if (e.data.size > 0) {
-                    audioChunks.push(e.data);
-                }
+            // Usamos un tamaño estable de 4096 muestras para un envío fluido
+            processorNode = audioCtx.createScriptProcessor(4096, 1, 1);
+            
+            processorNode.onaudioprocess = (e) => {
+                if (!isTransmitting || !currentRoom) return;
+                
+                const inputData = e.inputBuffer.getChannelData(0);
+                
+                // Convertimos a array clásico para garantizar la estabilidad de envío en cualquier móvil u ordenador
+                socket.emit('audio-raw', { room: currentRoom, buffer: Array.from(inputData) });
             };
 
-            mediaRecorder.onstop = () => {
-                if (currentRoom && audioChunks.length > 0) {
-                    const finalBlob = new Blob(audioChunks, { type: 'audio/webm;codecs=opus' });
-                    socket.emit('audio-packet', { room: currentRoom, blob: finalBlob });
-                }
-                audioChunks = []; 
-            };
+            microphoneStream.connect(processorNode);
+            processorNode.connect(audioCtx.destination);
 
             const startTalk = (e) => {
                 e.preventDefault();
-                if(mediaRecorder.state === "inactive") {
-                    if(audioCtx.state === 'suspended') audioCtx.resume();
-                    playTone(800, 0.08, 0);
-                    
-                    audioChunks = []; 
-                    mediaRecorder.start(); 
-                    
+                if (!isTransmitting) {
+                    if (audioCtx.state === 'suspended') audioCtx.resume();
+                    playTone(800, 0.05, 0);
+                    isTransmitting = true;
                     statusRing.classList.add('transmitting');
-                    pttStatus.innerText = "RECORDING_COMM...";
+                    pttStatus.innerText = "STREAMING_LIVE";
                     pttStatus.style.color = "#fff";
                 }
             };
 
             const stopTalk = (e) => {
                 e.preventDefault();
-                if(mediaRecorder.state === "recording") {
-                    mediaRecorder.stop(); 
-                    playTone(1200, 0.08, 0);
-                    statusRing.classList.add('transmitting'); 
-                    setTimeout(() => statusRing.classList.remove('transmitting'), 500);
+                if (isTransmitting) {
+                    isTransmitting = false;
+                    playTone(1200, 0.05, 0);
+                    statusRing.classList.remove('transmitting');
                     pttStatus.innerText = "SYSTEM_READY";
                     pttStatus.style.color = "var(--gold)";
                 }
@@ -209,7 +213,8 @@
 
             talkBtn.onmousedown = talkBtn.ontouchstart = startTalk;
             talkBtn.onmouseup = talkBtn.ontouchend = talkBtn.onmouseleave = stopTalk;
-        });
+
+        }).catch(err => alert("Falta el permiso del micrófono."));
 
         document.getElementById('joinBtn').onclick = () => {
             const code = document.getElementById('roomInput').value;
@@ -220,29 +225,47 @@
                 document.getElementById('displayCode').innerText = code.padStart(4, '0');
                 document.getElementById('setupSection').style.display = 'none';
                 document.getElementById('pttSection').style.display = 'block';
-                statusIndicator.innerText = "ENCRYPTED_LINK";
+                statusIndicator.innerText = "ENCRYPTED_LIVE_LINK";
                 statusIndicator.style.color = "var(--gold)";
             }
         };
 
-        socket.on('audio-packet', (blobData) => {
+        // RECEPTOR EN TIEMPO REAL CON RELOJ DE COLCHÓN (JITTER BUFFER)
+        socket.on('audio-raw', (bufferData) => {
             statusRing.classList.add('receiving');
+            lastReceivingTime = Date.now();
+
+            const float32Array = new Float32Array(bufferData);
+            const audioBuffer = audioCtx.createBuffer(1, float32Array.length, audioCtx.sampleRate);
+            audioBuffer.getChannelData(0).set(float32Array);
             
-            const blob = new Blob([blobData], { type: 'audio/webm;codecs=opus' });
-            const audioUrl = URL.createObjectURL(blob);
-            const audio = new Audio(audioUrl);
+            const source = audioCtx.createBufferSource();
+            const gainNode = audioCtx.createGain();
             
-            audio.volume = currentVolume; 
+            source.buffer = audioBuffer;
+            gainNode.gain.value = currentVolume; // Volumen del slider vinculado
             
-            audio.play().then(() => {
-                audio.onended = () => {
-                    statusRing.classList.remove('receiving');
-                    URL.revokeObjectURL(audioUrl); 
-                };
-            }).catch(() => {
-                statusRing.classList.remove('receiving');
-            });
+            source.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            
+            const currentTime = audioCtx.currentTime;
+            
+            // Si la cola se vació (inicio de transmisión o bajada de red), creamos un colchón de 150ms
+            if (nextStartTime < currentTime) {
+                nextStartTime = currentTime + 0.15; 
+            }
+            
+            // Programamos el fragmento para que empiece exactamente cuando termine el anterior
+            source.start(nextStartTime);
+            nextStartTime += audioBuffer.duration;
         });
+
+        // Apagado automático del anillo de recepción tras 300ms de silencio
+        setInterval(() => {
+            if (Date.now() - lastReceivingTime > 300) {
+                statusRing.classList.remove('receiving');
+            }
+        }, 100);
     </script>
 </body>
 </html>
