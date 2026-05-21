@@ -143,7 +143,7 @@
         let currentRoom = null;
         let mediaRecorder;
         let currentVolume = 0.8;
-        let audioChunks = []; // Array temporal para guardar TODA la grabación
+        let audioChunks = []; 
         
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 
@@ -158,7 +158,7 @@
             const g = audioCtx.createGain();
             o.frequency.value = f;
             g.gain.setValueAtTime(0.02, audioCtx.currentTime + s);
-            g.gain.exponentialRampToValueAtTime(0.001, currentTime -> audioCtx.currentTime + s + d);
+            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + s + d); // <-- CORREGIDO AQUÍ
             o.connect(g); g.connect(audioCtx.destination);
             o.start(audioCtx.currentTime + s); o.stop(audioCtx.currentTime + s + d);
         }
@@ -166,20 +166,18 @@
         navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
             mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
             
-            // Cuando hay datos disponibles (al detener la grabación)
             mediaRecorder.ondataavailable = (e) => {
                 if (e.data.size > 0) {
                     audioChunks.push(e.data);
                 }
             };
 
-            // Cuando la grabación se detiene por completo, se empaqueta y se envía
             mediaRecorder.onstop = () => {
                 if (currentRoom && audioChunks.length > 0) {
                     const finalBlob = new Blob(audioChunks, { type: 'audio/webm;codecs=opus' });
                     socket.emit('audio-packet', { room: currentRoom, blob: finalBlob });
                 }
-                audioChunks = []; // Vaciar el buffer para la siguiente transmisión
+                audioChunks = []; 
             };
 
             const startTalk = (e) => {
@@ -188,8 +186,8 @@
                     if(audioCtx.state === 'suspended') audioCtx.resume();
                     playTone(800, 0.08, 0);
                     
-                    audioChunks = []; // Limpieza de seguridad
-                    mediaRecorder.start(); // <-- SIN PARÁMETROS: Flujo continuo e infinito mientras mantengas pulsado
+                    audioChunks = []; 
+                    mediaRecorder.start(); 
                     
                     statusRing.classList.add('transmitting');
                     pttStatus.innerText = "RECORDING_COMM...";
@@ -200,16 +198,15 @@
             const stopTalk = (e) => {
                 e.preventDefault();
                 if(mediaRecorder.state === "recording") {
-                    mediaRecorder.stop(); // Corta la grabación y dispara el evento 'onstop' para enviar el audio entero
+                    mediaRecorder.stop(); 
                     playTone(1200, 0.08, 0);
-                    statusRing.classList.add('transmitting'); // Mantenemos el anillo encendido un momento mientras procesa
+                    statusRing.classList.add('transmitting'); 
                     setTimeout(() => statusRing.classList.remove('transmitting'), 500);
                     pttStatus.innerText = "SYSTEM_READY";
                     pttStatus.style.color = "var(--gold)";
                 }
             };
 
-            // Eventos para ordenadores y móviles
             talkBtn.onmousedown = talkBtn.ontouchstart = startTalk;
             talkBtn.onmouseup = talkBtn.ontouchend = talkBtn.onmouseleave = stopTalk;
         });
@@ -228,7 +225,6 @@
             }
         };
 
-        // RECEPTOR: Reproduce el mensaje completo recibido de una sola vez
         socket.on('audio-packet', (blobData) => {
             statusRing.classList.add('receiving');
             
@@ -241,7 +237,7 @@
             audio.play().then(() => {
                 audio.onended = () => {
                     statusRing.classList.remove('receiving');
-                    URL.revokeObjectURL(audioUrl); // Limpiar memoria
+                    URL.revokeObjectURL(audioUrl); 
                 };
             }).catch(() => {
                 statusRing.classList.remove('receiving');
