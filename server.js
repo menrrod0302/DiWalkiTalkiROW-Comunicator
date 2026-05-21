@@ -1,39 +1,33 @@
 const express = require('express');
 const app = express();
-const http = require('http').Server(app);
+const http = require('http').createServer(app);
 const io = require('socket.io')(http, {
     cors: { origin: "*" }
 });
 
-// Servir el archivo index.html automáticamente
-app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/index.html');
-});
+app.use(express.static(__dirname));
 
 io.on('connection', (socket) => {
-    let currentRoom = null;
+    console.log('Dispositivo conectado:', socket.id);
 
-    // Al unirse a una sala
-    socket.on('join-room', (roomId) => {
-        if (currentRoom) socket.leave(currentRoom);
-        socket.join(roomId);
-        currentRoom = roomId;
-        console.log(`Usuario unido al canal: ${roomId}`);
+    socket.on('join-room', (room) => {
+        socket.join(room);
+        console.log(`Socket ${socket.id} se unió al canal: ${room}`);
     });
 
-    // Recibir audio y enviarlo solo a la sala correspondiente
-    socket.on('audio-stream', (data) => {
-        // Enviar a todos en la sala menos al que habla
-        socket.to(data.room).emit('audio-stream', data.blob);
+    // Retransmisión inmediata de paquetes de audio crudos
+    socket.on('audio-packet', (data) => {
+        if (data.room) {
+            socket.to(data.room).emit('audio-packet', data.blob);
+        }
     });
 
     socket.on('disconnect', () => {
-        console.log('Usuario desconectado');
+        console.log('Dispositivo desconectado:', socket.id);
     });
 });
 
-// El puerto lo asigna Render automáticamente
 const PORT = process.env.PORT || 3000;
 http.listen(PORT, () => {
-    console.log(`Servidor en puerto ${PORT}`);
+    console.log(`Servidor Jarvis corriendo en puerto ${PORT}`);
 });
