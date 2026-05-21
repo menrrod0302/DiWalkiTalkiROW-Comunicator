@@ -8,26 +8,19 @@ const io = require('socket.io')(http, {
 app.use(express.static(__dirname));
 
 io.on('connection', (socket) => {
-    console.log('Dispositivo conectado:', socket.id);
-
     socket.on('join-room', (room) => {
         socket.join(room);
-        console.log(`Socket ${socket.id} se unió al canal: ${room}`);
     });
 
-    // Retransmisión inmediata de paquetes de audio crudos
-    socket.on('audio-packet', (data) => {
+    // Retransmite los paquetes de audio crudo inmediatamente
+    socket.on('audio-raw', (data) => {
         if (data.room) {
-            socket.to(data.room).emit('audio-packet', data.blob);
+            socket.to(data.room).emit('audio-raw', data.buffer);
         }
-    });
-
-    socket.on('disconnect', () => {
-        console.log('Dispositivo desconectado:', socket.id);
     });
 });
 
 const PORT = process.env.PORT || 3000;
 http.listen(PORT, () => {
-    console.log(`Servidor Jarvis corriendo en puerto ${PORT}`);
+    console.log(`Servidor corriendo en puerto ${PORT}`);
 });
