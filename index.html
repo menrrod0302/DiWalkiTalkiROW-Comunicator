@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>JARVIS Live Comms</title>
+    <title>JARVIS Realtime Comms</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -50,9 +50,7 @@
             font-family: 'Orbitron', monospace; font-size: 0.8rem;
             letter-spacing: 1px; transition: all 0.2s; z-index: 110;
         }
-        #menu-btn:hover {
-            background: rgba(0, 53, 102, 0.4); border-color: var(--school-bus-yellow);
-        }
+        #menu-btn:hover { background: rgba(0, 53, 102, 0.4); border-color: var(--school-bus-yellow); }
 
         #settings-menu {
             position: absolute; top: 70px; right: 20px;
@@ -60,11 +58,6 @@
             border-radius: 8px; padding: 20px; color: var(--gold);
             font-family: 'Orbitron', monospace; width: 250px; z-index: 110;
             box-shadow: 0 0 25px rgba(0, 53, 102, 0.6);
-        }
-        #settings-menu h3 {
-            margin-top: 0; font-size: 0.9rem; letter-spacing: 2px;
-            border-bottom: 1px solid var(--oxford-navy); padding-bottom: 8px;
-            color: var(--school-bus-yellow);
         }
         #settings-menu.hidden { display: none; }
         .setting-item { display: flex; flex-direction: column; margin-top: 15px; font-size: 0.75rem; }
@@ -147,15 +140,13 @@
         const volumeDisplay = document.getElementById("volume-display");
         
         let currentRoom = null;
-        let mediaRecorder;
         let currentVolume = 0.8;
+        let isTransmitting = false;
         
-        // Inicialización de la API de Audio avanzada para transmisión en directo
+        // Audio Context Global
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        let sourceBuffer;
-        let mediaSource;
-        let audioQueue = [];
-        let isPlayingQueue = false;
+        let processorNode;
+        let microphoneStream;
 
         menuBtn.onclick = () => settingsMenu.classList.toggle("hidden");
         volumeSlider.oninput = (e) => {
@@ -173,26 +164,33 @@
             o.start(audioCtx.currentTime + s); o.stop(audioCtx.currentTime + s + d);
         }
 
-        // Configuración de captura continua de alto rendimiento
+        // Configuración de captura en tiempo real pura (Audio Crudo)
         navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-            // Solicitamos fragmentos de audio ultra-pequeños cada 40 milisegundos
-            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+            microphoneStream = audioCtx.createMediaStreamSource(stream);
             
-            mediaRecorder.ondataavailable = (e) => {
-                if (e.data.size > 0 && currentRoom && mediaRecorder.state === "recording") {
-                    socket.emit('audio-packet', { room: currentRoom, blob: e.data });
-                }
+            // Creamos un nodo procesador con un buffer muy pequeño (2048 muestras) para latencia imperceptible
+            processorNode = audioCtx.createScriptProcessor(2048, 1, 1);
+            
+            processorNode.onaudioprocess = (e) => {
+                if (!isTransmitting || !currentRoom) return;
+                
+                // Obtenemos los datos puros flotantes del canal de audio
+                const inputData = e.inputBuffer.getChannelData(0);
+                
+                // Enviamos el array directamente como datos binarios rápidos
+                socket.emit('audio-raw', { room: currentRoom, buffer: inputData });
             };
+
+            // Conectamos el micrófono al procesador
+            microphoneStream.connect(processorNode);
+            processorNode.connect(audioCtx.destination);
 
             const startTalk = (e) => {
                 e.preventDefault();
-                if(mediaRecorder.state === "inactive") {
-                    if(audioCtx.state === 'suspended') audioCtx.resume();
+                if (!isTransmitting) {
+                    if (audioCtx.state === 'suspended') audioCtx.resume();
                     playTone(800, 0.05, 0);
-                    
-                    // Arrancamos y le exigimos ráfagas inmediatas de 40ms
-                    mediaRecorder.start(40); 
-                    
+                    isTransmitting = true;
                     statusRing.classList.add('transmitting');
                     pttStatus.innerText = "STREAMING_LIVE";
                     pttStatus.style.color = "#fff";
@@ -200,8 +198,8 @@
             };
 
             const stopTalk = () => {
-                if(mediaRecorder.state === "recording") {
-                    mediaRecorder.stop();
+                if (isTransmitting) {
+                    isTransmitting = false;
                     playTone(1200, 0.05, 0);
                     statusRing.classList.remove('transmitting');
                     pttStatus.innerText = "SYSTEM_READY";
@@ -211,7 +209,9 @@
 
             talkBtn.onmousedown = talkBtn.ontouchstart = startTalk;
             talkBtn.onmouseup = talkBtn.ontouchend = stopTalk;
-        });
+            talkBtn.onmouseleave = talkBtn.ontouchcancel = stopTalk;
+
+        }).catch(err => alert("Falta el permiso del micrófono."));
 
         document.getElementById('joinBtn').onclick = () => {
             const code = document.getElementById('roomInput').value;
@@ -227,52 +227,37 @@
             }
         };
 
-        // REPRODUCTOR EN TIEMPO REAL: Decodifica ráfagas al vuelo usando Web Audio API
-        socket.on('audio-packet', async (blobData) => {
+        // RECEPTOR INMEDIATO: Reproduce directamente el flujo de números flotantes
+        let lastReceivingTime = 0;
+        socket.on('audio-raw', (bufferData) => {
+            // Activar anillo amarillo de recepción
             statusRing.classList.add('receiving');
+            lastReceivingTime = Date.now();
+
+            // Convertimos los datos recibidos de vuelta a un array utilizable por la tarjeta de sonido
+            const float32Array = new Float32Array(bufferData);
             
-            // Metemos los fragmentos en la lista de procesamiento inmediato
-            audioQueue.push(blobData);
-            if (!isPlayingQueue) {
-                processAudioQueue();
-            }
+            // Creamos un buffer de reproducción al vuelo
+            const audioBuffer = audioCtx.createBuffer(1, float32Array.length, audioCtx.sampleRate);
+            audioBuffer.getChannelData(0).set(float32Array);
+            
+            const source = audioCtx.createBufferSource();
+            const gainNode = audioCtx.createGain();
+            
+            source.buffer = audioBuffer;
+            gainNode.gain.value = currentVolume; // Aplica el volumen de tu slider
+            
+            source.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+            source.start(0);
         });
 
-        async function processAudioQueue() {
-            if (audioQueue.length === 0) {
-                isPlayingQueue = false;
+        // Apagar el anillo amarillo si dejamos de recibir datos durante más de 300ms
+        setInterval(() => {
+            if (Date.now() - lastReceivingTime > 300) {
                 statusRing.classList.remove('receiving');
-                return;
             }
-
-            isPlayingQueue = true;
-            const rawData = audioQueue.shift();
-            
-            try {
-                const arrayBuffer = await new Response(rawData).arrayBuffer();
-                // Decodificamos de forma asíncrona la micro-ráfaga binaria
-                audioCtx.decodeAudioData(arrayBuffer, (audioBuffer) => {
-                    const source = audioCtx.createBufferSource();
-                    const gainNode = audioCtx.createGain();
-                    
-                    source.buffer = audioBuffer;
-                    gainNode.gain.value = currentVolume; // Aplica los cambios de tu Slider
-                    
-                    source.connect(gainNode);
-                    gainNode.connect(audioCtx.destination);
-                    
-                    source.start(0);
-                    source.onended = () => {
-                        processAudioQueue(); // Enlaza inmediatamente con el siguiente fragmento
-                    };
-                }, (err) => {
-                    // Si un micro-paquete inicial no tiene cabeceras lo descarta velozmente sin colgar el sistema
-                    processAudioQueue();
-                });
-            } catch (e) {
-                processAudioQueue();
-            }
-        }
+        }, 100);
     </script>
 </body>
 </html>
