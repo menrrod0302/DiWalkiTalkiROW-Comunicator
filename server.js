@@ -12,15 +12,15 @@ io.on('connection', (socket) => {
         socket.join(room);
     });
 
-    // Retransmite los paquetes de audio crudo inmediatamente
-    socket.on('audio-raw', (data) => {
+    // Retransmite los paquetes estables de WebM comprimidos
+    socket.on('audio-packet', (data) => {
         if (data.room) {
-            socket.to(data.room).emit('audio-raw', data.buffer);
+            socket.to(data.room).emit('audio-packet', data.blob);
         }
     });
 });
 
 const PORT = process.env.PORT || 3000;
 http.listen(PORT, () => {
-    console.log(`Servidor corriendo en puerto ${PORT}`);
+    console.log(`Servidor Jarvis corriendo en puerto ${PORT}`);
 });
