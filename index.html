@@ -196,7 +196,7 @@
                 e.preventDefault();
                 if(mediaRecorder.state === "inactive") {
                     playTone(800, 0.1, 0);
-                    mediaRecorder.start(100);
+                   mediaRecorder.start();
                     statusRing.classList.add('transmitting');
                     pttStatus.innerText = "UPLINK_ESTABLISHED";
                     pttStatus.style.color = "#fff";
