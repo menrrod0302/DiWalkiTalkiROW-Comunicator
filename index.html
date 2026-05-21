@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>JARVIS Comms v2</title>
+    <title>JARVIS Comms v3</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -29,7 +29,7 @@
             background-image: radial-gradient(circle at center, var(--oxford-navy) 0%, var(--ink-black) 90%);
         }
 
-        /* CAPA LCD (Basada en image_850001.png) */
+        /* CAPA LCD */
         body::before {
             content: " ";
             position: fixed;
@@ -42,6 +42,83 @@
         }
 
         .main-container { z-index: 10; text-align: center; }
+
+        /* NUEVO: BOTÓN DE AJUSTES ESTILO JARVIS */
+        #menu-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: transparent;
+            border: 1px solid var(--oxford-navy);
+            color: var(--gold);
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: 'Orbitron', monospace;
+            font-size: 0.8rem;
+            letter-spacing: 1px;
+            transition: all 0.2s;
+            z-index: 110;
+        }
+        #menu-btn:hover {
+            background: rgba(0, 53, 102, 0.4);
+            border-color: var(--school-bus-yellow);
+            box-shadow: 0 0 10px var(--oxford-navy);
+        }
+
+        /* NUEVO: MENÚ DE CONFIGURACIÓN INTEGRADO */
+        #settings-menu {
+            position: absolute;
+            top: 70px;
+            right: 20px;
+            background: rgba(0, 8, 20, 0.95);
+            border: 1px solid var(--oxford-navy);
+            border-radius: 8px;
+            padding: 20px;
+            color: var(--gold);
+            font-family: 'Orbitron', monospace;
+            width: 250px;
+            z-index: 110;
+            box-shadow: 0 0 25px rgba(0, 53, 102, 0.6);
+            transition: opacity 0.3s, transform 0.3s;
+        }
+        #settings-menu h3 {
+            margin-top: 0;
+            font-size: 0.9rem;
+            letter-spacing: 2px;
+            border-bottom: 1px solid var(--oxford-navy);
+            padding-bottom: 8px;
+            color: var(--school-bus-yellow);
+        }
+        #settings-menu.hidden {
+            display: none;
+        }
+        .setting-item {
+            display: flex;
+            flex-direction: column;
+            margin-top: 15px;
+            font-size: 0.75rem;
+            letter-spacing: 1px;
+        }
+        .setting-item label { margin-bottom: 5px; }
+        #volume-display { align-self: flex-end; color: var(--school-bus-yellow); font-weight: bold; }
+
+        /* ESTILOS SLIDER CORREGIDOS PARA LA PALETA */
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+            margin: 10px 0;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; background: var(--oxford-navy); border-radius: 2px;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px; width: 16px; border-radius: 50%;
+            background: var(--gold); margin-top: -6px; cursor: pointer;
+            box-shadow: 0 0 8px var(--school-bus-yellow);
+        }
 
         /* PANEL CENTRAL CIRCULAR */
         .jarvis-hud {
@@ -59,7 +136,6 @@
             background: rgba(0, 29, 61, 0.2);
         }
 
-        /* ANILLO DE LUZ QUE RODEA EL CÍRCULO (Sustituye a la línea de image_84f5d2.png) */
         .status-ring {
             position: absolute;
             top: -5px; left: -5px; right: -5px; bottom: -5px;
@@ -68,8 +144,6 @@
             transition: all 0.3s ease;
             pointer-events: none;
         }
-
-        /* ESTADOS DEL ANILLO */
         .status-ring.transmitting { 
             border-color: #ffffff; 
             box-shadow: 0 0 30px rgba(255, 255, 255, 0.6), inset 0 0 20px rgba(255, 255, 255, 0.4);
@@ -80,55 +154,36 @@
         }
 
         .freq-value { 
-            font-size: 3.8rem; 
-            color: var(--gold); 
-            text-shadow: 0 0 20px var(--school-bus-yellow); 
-            margin: 5px 0;
-            font-weight: 900;
-            letter-spacing: 5px;
+            font-size: 3.8rem; color: var(--gold); text-shadow: 0 0 20px var(--school-bus-yellow); 
+            margin: 5px 0; font-weight: 900; letter-spacing: 5px;
         }
 
         /* BOTÓN PTT */
         #pushToTalk { 
             width: 160px; height: 160px; border-radius: 50%;
-            background: transparent;
-            border: 2px solid var(--oxford-navy);
-            color: var(--gold); 
-            font-family: 'Orbitron', sans-serif;
-            font-weight: bold;
-            cursor: pointer;
-            transition: 0.2s;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            position: relative;
+            background: transparent; border: 2px solid var(--oxford-navy);
+            color: var(--gold); font-family: 'Orbitron', sans-serif;
+            font-weight: bold; cursor: pointer; transition: 0.2s;
+            text-transform: uppercase; letter-spacing: 2px; position: relative;
             -webkit-tap-highlight-color: transparent;
         }
-
         #pushToTalk:active {
-            transform: scale(0.92);
-            border-color: #ffffff;
-            box-shadow: 0 0 40px rgba(255, 255, 255, 0.3);
-            color: #fff;
+            transform: scale(0.92); border-color: #ffffff;
+            box-shadow: 0 0 40px rgba(255, 255, 255, 0.3); color: #fff;
         }
 
-        /* ELEMENTOS DECORATIVOS */
         .ring-decor {
-            position: absolute;
-            border: 1px solid var(--oxford-navy);
-            border-radius: 50%;
-            opacity: 0.4;
-            animation: rotate 20s linear infinite;
+            position: absolute; border: 1px solid var(--oxford-navy);
+            border-radius: 50%; opacity: 0.4; animation: rotate 20s linear infinite;
         }
         @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-
         .label { font-size: 0.65rem; letter-spacing: 3px; color: var(--oxford-navy); font-weight: bold; }
 
-        input { 
+        input[type=number] { 
             background: transparent; border: 1px solid var(--oxford-navy); 
             color: var(--gold); padding: 12px; font-size: 1.5rem; width: 100px; 
             text-align: center; border-radius: 4px; font-family: 'Orbitron';
         }
-
         button#joinBtn { 
             padding: 12px 25px; background: var(--oxford-navy); 
             color: var(--gold); border: 1px solid var(--school-bus-yellow); 
@@ -138,14 +193,20 @@
 </head>
 <body>
 
+    <button id="menu-btn">⚙️ SETTINGS</button>
+    <div id="settings-menu" class="hidden">
+        <h3>CONFIG_PANEL</h3>
+        <div class="setting-item">
+            <label for="volume-slider">RX_VOLUME:</label>
+            <input type="range" id="volume-slider" min="0" max="1" step="0.01" value="0.8">
+            <span id="volume-display">80%</span>
+        </div>
+    </div>
+
     <div class="main-container">
         <div class="jarvis-hud" id="hudBox">
-            <!-- Anillo dinámico -->
             <div id="statusRing" class="status-ring"></div>
-            
-            <!-- Decoración Jarvis -->
             <div class="ring-decor" style="width: 340px; height: 340px; border-style: dashed;"></div>
-            
             <div class="label">SIGNAL_ID</div>
             <div id="displayCode" class="freq-value">----</div>
             <div id="statusIndicator" style="font-size: 0.7rem; color: var(--oxford-navy);">OFFLINE</div>
@@ -170,9 +231,25 @@
         const statusIndicator = document.getElementById('statusIndicator');
         const talkBtn = document.getElementById('pushToTalk');
         
+        // Elementos del menú
+        const menuBtn = document.getElementById("menu-btn");
+        const settingsMenu = document.getElementById("settings-menu");
+        const volumeSlider = document.getElementById("volume-slider");
+        const volumeDisplay = document.getElementById("volume-display");
+        
         let currentRoom = null;
         let mediaRecorder;
+        let currentVolume = 0.8; // Almacenamos el volumen globalmente
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+        // Lógica del menú desplegable
+        menuBtn.onclick = () => settingsMenu.classList.toggle("hidden");
+
+        // Guardar el volumen cuando el usuario arrastra el slider
+        volumeSlider.oninput = (e) => {
+            currentVolume = e.target.value;
+            volumeDisplay.innerText = Math.round(currentVolume * 100) + "%";
+        };
 
         function playTone(f, d, s) {
             const o = audioCtx.createOscillator();
@@ -196,7 +273,7 @@
                 e.preventDefault();
                 if(mediaRecorder.state === "inactive") {
                     playTone(800, 0.1, 0);
-                   mediaRecorder.start();
+                    mediaRecorder.start(); // Envía todo completo al soltar (Sin delay intermedio)
                     statusRing.classList.add('transmitting');
                     pttStatus.innerText = "UPLINK_ESTABLISHED";
                     pttStatus.style.color = "#fff";
@@ -231,9 +308,14 @@
             }
         };
 
+        // Recibir audio aplicando el volumen del Slider
         socket.on('audio-stream', (blobData) => {
             statusRing.classList.add('receiving');
             const audio = new Audio(URL.createObjectURL(new Blob([blobData])));
+            
+            // CORRECCIÓN CRUCIAL: Aplicamos el volumen del slider al audio dinámico
+            audio.volume = currentVolume; 
+            
             audio.play();
             audio.onended = () => {
                 statusRing.classList.remove('receiving');
@@ -241,8 +323,5 @@
             };
         });
     </script>
-</body>
-</html>
-</html>
 </body>
 </html>
