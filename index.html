@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>JARVIS Buffered Comms</title>
+    <title>JARVIS Classic Comms</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -84,6 +84,7 @@
             width: 160px; height: 160px; border-radius: 50%; background: transparent; border: 2px solid var(--oxford-navy);
             color: var(--gold); font-family: 'Orbitron', sans-serif; font-weight: bold; cursor: pointer; transition: 0.2s;
             text-transform: uppercase; letter-spacing: 2px; -webkit-tap-highlight-color: transparent;
+            user-select: none; -webkit-user-select: none;
         }
         #pushToTalk:active { transform: scale(0.92); border-color: #ffffff; box-shadow: 0 0 40px rgba(255, 255, 255, 0.3); color: #fff; }
 
@@ -142,13 +143,9 @@
         let currentRoom = null;
         let mediaRecorder;
         let currentVolume = 0.8;
+        let audioChunks = []; // Array temporal para guardar TODA la grabación
         
-        // Contexto de audio para pitidos tácticos
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        
-        // Variables para la cola de reproducción de audio fluida
-        let audioQueue = [];
-        let isPlaying = false;
 
         menuBtn.onclick = () => settingsMenu.classList.toggle("hidden");
         volumeSlider.oninput = (e) => {
@@ -161,19 +158,28 @@
             const g = audioCtx.createGain();
             o.frequency.value = f;
             g.gain.setValueAtTime(0.02, audioCtx.currentTime + s);
-            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + s + d);
+            g.gain.exponentialRampToValueAtTime(0.001, currentTime -> audioCtx.currentTime + s + d);
             o.connect(g); g.connect(audioCtx.destination);
             o.start(audioCtx.currentTime + s); o.stop(audioCtx.currentTime + s + d);
         }
 
-        // Configuración de grabación optimizada por bloques fluidos
         navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
             mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
             
+            // Cuando hay datos disponibles (al detener la grabación)
             mediaRecorder.ondataavailable = (e) => {
-                if (e.data.size > 0 && currentRoom && mediaRecorder.state === "recording") {
-                    socket.emit('audio-packet', { room: currentRoom, blob: e.data });
+                if (e.data.size > 0) {
+                    audioChunks.push(e.data);
                 }
+            };
+
+            // Cuando la grabación se detiene por completo, se empaqueta y se envía
+            mediaRecorder.onstop = () => {
+                if (currentRoom && audioChunks.length > 0) {
+                    const finalBlob = new Blob(audioChunks, { type: 'audio/webm;codecs=opus' });
+                    socket.emit('audio-packet', { room: currentRoom, blob: finalBlob });
+                }
+                audioChunks = []; // Vaciar el buffer para la siguiente transmisión
             };
 
             const startTalk = (e) => {
@@ -182,28 +188,30 @@
                     if(audioCtx.state === 'suspended') audioCtx.resume();
                     playTone(800, 0.08, 0);
                     
-                    // Captura fragmentos estables cada 600ms (Compromiso ideal calidad/latencia)
-                    mediaRecorder.start(600); 
+                    audioChunks = []; // Limpieza de seguridad
+                    mediaRecorder.start(); // <-- SIN PARÁMETROS: Flujo continuo e infinito mientras mantengas pulsado
                     
                     statusRing.classList.add('transmitting');
-                    pttStatus.innerText = "STREAMING_LIVE";
+                    pttStatus.innerText = "RECORDING_COMM...";
                     pttStatus.style.color = "#fff";
                 }
             };
 
-            const stopTalk = () => {
+            const stopTalk = (e) => {
+                e.preventDefault();
                 if(mediaRecorder.state === "recording") {
-                    // Detener de inmediato fuerza el envío del último trozo residual de audio
-                    mediaRecorder.stop();
+                    mediaRecorder.stop(); // Corta la grabación y dispara el evento 'onstop' para enviar el audio entero
                     playTone(1200, 0.08, 0);
-                    statusRing.classList.remove('transmitting');
+                    statusRing.classList.add('transmitting'); // Mantenemos el anillo encendido un momento mientras procesa
+                    setTimeout(() => statusRing.classList.remove('transmitting'), 500);
                     pttStatus.innerText = "SYSTEM_READY";
                     pttStatus.style.color = "var(--gold)";
                 }
             };
 
+            // Eventos para ordenadores y móviles
             talkBtn.onmousedown = talkBtn.ontouchstart = startTalk;
-            talkBtn.onmouseup = talkBtn.ontouchend = stopTalk;
+            talkBtn.onmouseup = talkBtn.ontouchend = talkBtn.onmouseleave = stopTalk;
         });
 
         document.getElementById('joinBtn').onclick = () => {
@@ -220,43 +228,25 @@
             }
         };
 
-        // RECEPTOR SECTORIZADO: Almacena los WebM comprimidos en cola para evitar cortes
+        // RECEPTOR: Reproduce el mensaje completo recibido de una sola vez
         socket.on('audio-packet', (blobData) => {
             statusRing.classList.add('receiving');
             
             const blob = new Blob([blobData], { type: 'audio/webm;codecs=opus' });
-            audioQueue.push(blob);
-            
-            if (!isPlaying) {
-                playNextInQueue();
-            }
-        });
-
-        function playNextInQueue() {
-            if (audioQueue.length === 0) {
-                isPlaying = false;
-                statusRing.classList.remove('receiving');
-                return;
-            }
-
-            isPlaying = true;
-            const nextBlob = audioQueue.shift();
-            const audioUrl = URL.createObjectURL(nextBlob);
+            const audioUrl = URL.createObjectURL(blob);
             const audio = new Audio(audioUrl);
             
-            // Aplica el volumen exacto de tu panel de control de Jarvis
             audio.volume = currentVolume; 
             
             audio.play().then(() => {
                 audio.onended = () => {
-                    URL.revokeObjectURL(audioUrl); // Limpieza de memoria
-                    playNextInQueue(); // Ejecuta el siguiente fragmento sin pausas flotantes
+                    statusRing.classList.remove('receiving');
+                    URL.revokeObjectURL(audioUrl); // Limpiar memoria
                 };
             }).catch(() => {
-                // Si un micro-bloque está corrupto lo descarta rápido para no congelar la app
-                playNextInQueue();
+                statusRing.classList.remove('receiving');
             });
-        }
+        });
     </script>
 </body>
 </html>
