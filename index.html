@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>JARVIS Realtime Comms</title>
+    <title>JARVIS Buffered Comms</title>
     <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;900&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -140,13 +140,15 @@
         const volumeDisplay = document.getElementById("volume-display");
         
         let currentRoom = null;
+        let mediaRecorder;
         let currentVolume = 0.8;
-        let isTransmitting = false;
         
-        // Audio Context Global
+        // Contexto de audio para pitidos tácticos
         const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        let processorNode;
-        let microphoneStream;
+        
+        // Variables para la cola de reproducción de audio fluida
+        let audioQueue = [];
+        let isPlaying = false;
 
         menuBtn.onclick = () => settingsMenu.classList.toggle("hidden");
         volumeSlider.oninput = (e) => {
@@ -164,33 +166,25 @@
             o.start(audioCtx.currentTime + s); o.stop(audioCtx.currentTime + s + d);
         }
 
-        // Configuración de captura en tiempo real pura (Audio Crudo)
+        // Configuración de grabación optimizada por bloques fluidos
         navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-            microphoneStream = audioCtx.createMediaStreamSource(stream);
+            mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
             
-            // Creamos un nodo procesador con un buffer muy pequeño (2048 muestras) para latencia imperceptible
-            processorNode = audioCtx.createScriptProcessor(2048, 1, 1);
-            
-            processorNode.onaudioprocess = (e) => {
-                if (!isTransmitting || !currentRoom) return;
-                
-                // Obtenemos los datos puros flotantes del canal de audio
-                const inputData = e.inputBuffer.getChannelData(0);
-                
-                // Enviamos el array directamente como datos binarios rápidos
-                socket.emit('audio-raw', { room: currentRoom, buffer: inputData });
+            mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0 && currentRoom && mediaRecorder.state === "recording") {
+                    socket.emit('audio-packet', { room: currentRoom, blob: e.data });
+                }
             };
-
-            // Conectamos el micrófono al procesador
-            microphoneStream.connect(processorNode);
-            processorNode.connect(audioCtx.destination);
 
             const startTalk = (e) => {
                 e.preventDefault();
-                if (!isTransmitting) {
-                    if (audioCtx.state === 'suspended') audioCtx.resume();
-                    playTone(800, 0.05, 0);
-                    isTransmitting = true;
+                if(mediaRecorder.state === "inactive") {
+                    if(audioCtx.state === 'suspended') audioCtx.resume();
+                    playTone(800, 0.08, 0);
+                    
+                    // Captura fragmentos estables cada 600ms (Compromiso ideal calidad/latencia)
+                    mediaRecorder.start(600); 
+                    
                     statusRing.classList.add('transmitting');
                     pttStatus.innerText = "STREAMING_LIVE";
                     pttStatus.style.color = "#fff";
@@ -198,9 +192,10 @@
             };
 
             const stopTalk = () => {
-                if (isTransmitting) {
-                    isTransmitting = false;
-                    playTone(1200, 0.05, 0);
+                if(mediaRecorder.state === "recording") {
+                    // Detener de inmediato fuerza el envío del último trozo residual de audio
+                    mediaRecorder.stop();
+                    playTone(1200, 0.08, 0);
                     statusRing.classList.remove('transmitting');
                     pttStatus.innerText = "SYSTEM_READY";
                     pttStatus.style.color = "var(--gold)";
@@ -209,9 +204,7 @@
 
             talkBtn.onmousedown = talkBtn.ontouchstart = startTalk;
             talkBtn.onmouseup = talkBtn.ontouchend = stopTalk;
-            talkBtn.onmouseleave = talkBtn.ontouchcancel = stopTalk;
-
-        }).catch(err => alert("Falta el permiso del micrófono."));
+        });
 
         document.getElementById('joinBtn').onclick = () => {
             const code = document.getElementById('roomInput').value;
@@ -222,42 +215,48 @@
                 document.getElementById('displayCode').innerText = code.padStart(4, '0');
                 document.getElementById('setupSection').style.display = 'none';
                 document.getElementById('pttSection').style.display = 'block';
-                statusIndicator.innerText = "ENCRYPTED_LIVE_LINK";
+                statusIndicator.innerText = "ENCRYPTED_LINK";
                 statusIndicator.style.color = "var(--gold)";
             }
         };
 
-        // RECEPTOR INMEDIATO: Reproduce directamente el flujo de números flotantes
-        let lastReceivingTime = 0;
-        socket.on('audio-raw', (bufferData) => {
-            // Activar anillo amarillo de recepción
+        // RECEPTOR SECTORIZADO: Almacena los WebM comprimidos en cola para evitar cortes
+        socket.on('audio-packet', (blobData) => {
             statusRing.classList.add('receiving');
-            lastReceivingTime = Date.now();
-
-            // Convertimos los datos recibidos de vuelta a un array utilizable por la tarjeta de sonido
-            const float32Array = new Float32Array(bufferData);
             
-            // Creamos un buffer de reproducción al vuelo
-            const audioBuffer = audioCtx.createBuffer(1, float32Array.length, audioCtx.sampleRate);
-            audioBuffer.getChannelData(0).set(float32Array);
+            const blob = new Blob([blobData], { type: 'audio/webm;codecs=opus' });
+            audioQueue.push(blob);
             
-            const source = audioCtx.createBufferSource();
-            const gainNode = audioCtx.createGain();
-            
-            source.buffer = audioBuffer;
-            gainNode.gain.value = currentVolume; // Aplica el volumen de tu slider
-            
-            source.connect(gainNode);
-            gainNode.connect(audioCtx.destination);
-            source.start(0);
+            if (!isPlaying) {
+                playNextInQueue();
+            }
         });
 
-        // Apagar el anillo amarillo si dejamos de recibir datos durante más de 300ms
-        setInterval(() => {
-            if (Date.now() - lastReceivingTime > 300) {
+        function playNextInQueue() {
+            if (audioQueue.length === 0) {
+                isPlaying = false;
                 statusRing.classList.remove('receiving');
+                return;
             }
-        }, 100);
+
+            isPlaying = true;
+            const nextBlob = audioQueue.shift();
+            const audioUrl = URL.createObjectURL(nextBlob);
+            const audio = new Audio(audioUrl);
+            
+            // Aplica el volumen exacto de tu panel de control de Jarvis
+            audio.volume = currentVolume; 
+            
+            audio.play().then(() => {
+                audio.onended = () => {
+                    URL.revokeObjectURL(audioUrl); // Limpieza de memoria
+                    playNextInQueue(); // Ejecuta el siguiente fragmento sin pausas flotantes
+                };
+            }).catch(() => {
+                // Si un micro-bloque está corrupto lo descarta rápido para no congelar la app
+                playNextInQueue();
+            });
+        }
     </script>
 </body>
 </html>
